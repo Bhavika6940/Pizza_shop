@@ -1,13 +1,86 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+enum IngredientCategory {
+  SIZE
+  CRUST
+  SAUCE
+  CHEESE
+  MEAT
+  VEGGIE
+  DIP
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  BAKING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+}
+
+model Ingredient {
+  id          String             @id @default(uuid())
+  name        String
+  category    IngredientCategory
+  price       Float
+  image       String?
+  inStock     Boolean            @default(true)
+  description String?
+  isDefault   Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model Order {
+  id                  String        @id @default(uuid())
+  orderCode           String        @unique @default(uuid())
+  customerName        String
+  customerPhone       String
+  deliveryAddress     String
+  orderType           OrderType     @default(DELIVERY)
+  paymentMethod       PaymentMethod @default(CASH)
+  specialInstructions String?
+  totalPrice          Float
+  status              OrderStatus   @default(PENDING)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  items               OrderItem[]
+}
+
+model OrderItem {
+  id          String                @id @default(uuid())
+  orderId     String
+  order       Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  pizzaName   String                @default("Custom Pizza")
+  size        String                @default("Medium")
+  quantity    Int                   @default(1)
+  itemPrice   Float
+  ingredients OrderItemIngredient[]
+}
+
+model OrderItemIngredient {
+  id              String              @id @default(uuid())
+  orderItemId     String
+  orderItem       OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  ingredientId    String?
+  ingredientName  String
+  ingredientPrice Float
+  category        IngredientCategory?
 }
