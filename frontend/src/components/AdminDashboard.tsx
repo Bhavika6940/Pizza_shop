@@ -2,8 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { Ingredient, Order, OrderStatus, IngredientCategory } from '@/types';
-import { fetchAllOrders, updateOrderStatus, toggleIngredientStock, updateIngredientPrice, addIngredient } from '@/lib/api';
-import { ShieldCheck, Package, Layers, CheckCircle, RefreshCw, Plus, Edit2, Check, X, AlertCircle, Clock } from 'lucide-react';
+import { fetchAllOrders, updateOrderStatus, toggleIngredientStock, updateIngredient, deleteIngredient, addIngredient } from '@/lib/api';
+import { ShieldCheck, Package, Layers, CheckCircle, RefreshCw, Plus, Edit2, Check, X, AlertCircle, Clock, Trash2 } from 'lucide-react';
+
+import { useToast } from '@/components/ToastProvider';
+import { useAuth } from '@/context/AuthContext';
+import { LogOut, Lock, KeyRound, Mail, Sparkles } from 'lucide-react';
 
 interface AdminDashboardProps {
   ingredients: Ingredient[];
@@ -14,10 +18,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   ingredients,
   onRefreshIngredients,
 }) => {
+  const toast = useToast();
+  const { adminUser, isAdminLoggedIn, loginAdmin, logoutAdmin, quickDemoAdminLogin } = useAuth();
+  
+  // Admin Login state
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminAuthLoading, setAdminAuthLoading] = useState(false);
+  const [adminAuthError, setAdminAuthError] = useState('');
+
   const [activeTab, setActiveTab] = useState<'orders' | 'ingredients'>('orders');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [orderFilter, setOrderFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedAdminTab = localStorage.getItem('slicecraft_admin_tab') as 'orders' | 'ingredients' | null;
+      if (savedAdminTab && ['orders', 'ingredients'].includes(savedAdminTab)) {
+        setActiveTab(savedAdminTab);
+      }
+    }
+  }, []);
+
+  const handleAdminTabChange = (tab: 'orders' | 'ingredients') => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('slicecraft_admin_tab', tab);
+    }
+  };
 
   // Editing ingredient price state
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
@@ -29,6 +58,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newCategory, setNewCategory] = useState<IngredientCategory>(IngredientCategory.MEAT);
   const [newPrice, setNewPrice] = useState<number>(1.50);
   const [newDesc, setNewDesc] = useState('');
+  const [newImage, setNewImage] = useState('');
+  const [newIsDefault, setNewIsDefault] = useState(false);
+
+  // Edit Ingredient modal state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState<IngredientCategory>(IngredientCategory.MEAT);
+  const [editPrice, setEditPrice] = useState<number>(0);
+  const [editDesc, setEditDesc] = useState('');
+  const [editImage, setEditImage] = useState('');
+  const [editInStock, setEditInStock] = useState(true);
+  const [editIsDefault, setEditIsDefault] = useState(false);
+
+  const handleAdminLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminAuthLoading(true);
+    setAdminAuthError('');
+    try {
+      const u = await loginAdmin(adminEmail, adminPassword);
+      toast.success(`Welcome to Admin Portal, ${u.name}!`);
+    } catch (err: any) {
+      setAdminAuthError(err.message || 'Admin authentication failed');
+    } finally {
+      setAdminAuthLoading(false);
+    }
+  };
 
   // Load orders
   const loadOrders = async () => {
@@ -44,15 +100,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   };
 
   useEffect(() => {
-    if (activeTab === 'orders') {
+    if (activeTab === 'orders' && isAdminLoggedIn) {
       loadOrders();
     }
-  }, [activeTab, orderFilter]);
+  }, [activeTab, orderFilter, isAdminLoggedIn]);
 
   // Listen to background mock order updates to keep dashboard dynamic
   useEffect(() => {
     const handleMockUpdate = () => {
-      if (activeTab === 'orders') {
+      if (activeTab === 'orders' && isAdminLoggedIn) {
         loadOrders();
       }
     };
@@ -65,15 +121,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         window.removeEventListener('mock-order-updated', handleMockUpdate);
       }
     };
-  }, [activeTab]);
+  }, [activeTab, isAdminLoggedIn]);
 
   // Handle Order Status Update
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {
       await updateOrderStatus(orderId, newStatus);
+      toast.success(`Order status updated to ${newStatus.replace(/_/g, ' ')}`);
       await loadOrders();
     } catch (err) {
-      alert('Failed to update status.');
+      toast.error('Failed to update status.');
     }
   };
 
@@ -81,20 +138,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleToggleStock = async (ingredientId: string) => {
     try {
       await toggleIngredientStock(ingredientId);
+      toast.success('Stock availability updated');
       onRefreshIngredients();
     } catch (err) {
-      alert('Failed to toggle stock.');
+      toast.error('Failed to toggle stock.');
     }
   };
 
   // Handle Price Save
   const handleSavePrice = async (ingredientId: string) => {
     try {
-      await updateIngredientPrice(ingredientId, Number(editingPriceValue));
+      await updateIngredient(ingredientId, { price: Number(editingPriceValue) });
+      toast.success('Price updated successfully');
       setEditingPriceId(null);
       onRefreshIngredients();
     } catch (err) {
-      alert('Failed to update price.');
+      toast.error('Failed to update price.');
     }
   };
 
@@ -107,17 +166,158 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         name: newName,
         category: newCategory,
         price: Number(newPrice),
-        description: newDesc,
+        description: newDesc || undefined,
+        image: newImage || undefined,
         inStock: true,
+        isDefault: newIsDefault,
       });
+      toast.success(`Ingredient "${newName}" added successfully`);
       setShowAddModal(false);
       setNewName('');
       setNewDesc('');
+      setNewImage('');
+      setNewIsDefault(false);
       onRefreshIngredients();
     } catch (err) {
-      alert('Failed to add ingredient.');
+      toast.error('Failed to add ingredient.');
     }
   };
+
+  // Handle Edit Click
+  const handleEditClick = (ing: Ingredient) => {
+    setEditingIngredient(ing);
+    setEditName(ing.name);
+    setEditCategory(ing.category);
+    setEditPrice(ing.price);
+    setEditDesc(ing.description || '');
+    setEditImage(ing.image || '');
+    setEditInStock(ing.inStock);
+    setEditIsDefault(ing.isDefault || false);
+    setShowEditModal(true);
+  };
+
+  // Handle Edit Ingredient Submit
+  const handleUpdateIngredient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingIngredient) return;
+    try {
+      await updateIngredient(editingIngredient.id, {
+        name: editName,
+        category: editCategory,
+        price: Number(editPrice),
+        description: editDesc || undefined,
+        image: editImage || undefined,
+        inStock: editInStock,
+        isDefault: editIsDefault,
+      });
+      toast.success(`Ingredient "${editName}" updated successfully`);
+      setShowEditModal(false);
+      setEditingIngredient(null);
+      onRefreshIngredients();
+    } catch (err) {
+      toast.error('Failed to update ingredient.');
+    }
+  };
+
+  // Handle Delete Ingredient
+  const handleDeleteIngredient = async (id: string, name: string) => {
+    if (confirm(`Are you sure you want to delete "${name}"?`)) {
+      try {
+        await deleteIngredient(id);
+        toast.success(`Ingredient "${name}" deleted successfully`);
+        onRefreshIngredients();
+      } catch (err) {
+        toast.error('Failed to delete ingredient.');
+      }
+    }
+  };
+
+  // Render Admin Auth Gate if not logged in as Admin
+  if (!isAdminLoggedIn) {
+    return (
+      <div className="w-full max-w-md mx-auto px-4 py-16">
+        <div className="glass-panel bg-zinc-950/90 rounded-3xl p-8 border border-white/10 text-white space-y-6 shadow-2xl">
+          <div className="text-center space-y-2">
+            <span className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400 inline-block border border-amber-500/20 mb-2">
+              <ShieldCheck className="w-8 h-8" />
+            </span>
+            <h1 className="text-3xl font-black text-white">Admin Authentication</h1>
+            <p className="text-xs text-zinc-400">Restricted portal for kitchen staff & store management</p>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-amber-300 block">Quick Demo Access</span>
+              <span className="text-[11px] text-zinc-400">Log in as Master Pizzaiolo Admin</span>
+            </div>
+            <button
+              onClick={async () => {
+                setAdminAuthLoading(true);
+                try {
+                  const u = await quickDemoAdminLogin();
+                  toast.success(`Welcome back, ${u.name}!`);
+                } catch {
+                  toast.error('Demo admin login failed');
+                } finally {
+                  setAdminAuthLoading(false);
+                }
+              }}
+              disabled={adminAuthLoading}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-black transition-all shadow-md shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Demo Admin
+            </button>
+          </div>
+
+          {adminAuthError && (
+            <div className="p-3 rounded-xl bg-red-950/60 border border-red-500/30 text-red-300 text-xs font-semibold text-center">
+              {adminAuthError}
+            </div>
+          )}
+
+          <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Email</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="email"
+                  required
+                  placeholder="admin@slicecraft.com"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Password</label>
+              <div className="relative">
+                <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={adminAuthLoading}
+              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-xs transition-all shadow-md mt-2"
+            >
+              {adminAuthLoading ? 'Verifying Admin Credentials...' : 'Unlock Admin Portal'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full max-w-7xl mx-auto px-4 lg:px-8 py-8 space-y-8">
@@ -126,36 +326,51 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-white/10">
         <div>
           <div className="flex items-center gap-2">
-            <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+            <span className="p-2 rounded-xl bg-green-500/10 text-green-400 border border-green-500/20">
               <ShieldCheck className="w-6 h-6" />
             </span>
             <h1 className="text-2xl md:text-4xl font-black text-white">Restaurant Admin Portal</h1>
           </div>
-          <p className="text-xs text-zinc-400 mt-1">Manage kitchen orders and ingredient inventory in real time</p>
+          <p className="text-xs text-zinc-400 mt-1">
+            Logged in as <strong className="text-amber-300">{adminUser?.name || 'Administrator'}</strong> ({adminUser?.email})
+          </p>
         </div>
 
-        {/* Tab Toggle */}
-        <div className="flex items-center gap-2 bg-zinc-900 p-1.5 rounded-2xl border border-white/10">
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'orders'
-                ? 'bg-amber-500 text-black shadow-md'
-                : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Package className="w-4 h-4" /> Live Orders ({orders.length})
-          </button>
+        {/* Tab Toggle & Logout */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 bg-zinc-900 p-1.5 rounded-2xl border border-white/10">
+            <button
+              onClick={() => handleAdminTabChange('orders')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'orders'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Package className="w-4 h-4" /> Live Orders ({orders.length})
+            </button>
+
+            <button
+              onClick={() => handleAdminTabChange('ingredients')}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                activeTab === 'ingredients'
+                  ? 'bg-amber-500 text-black shadow-md'
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-4 h-4" /> Ingredients ({ingredients.length})
+            </button>
+          </div>
 
           <button
-            onClick={() => setActiveTab('ingredients')}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'ingredients'
-                ? 'bg-amber-500 text-black shadow-md'
-                : 'text-zinc-400 hover:text-white'
-            }`}
+            onClick={() => {
+              logoutAdmin();
+              toast.info('Admin logged out.');
+            }}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-400 text-xs font-bold transition-all"
+            title="Sign Out Admin"
           >
-            <Layers className="w-4 h-4" /> Ingredients ({ingredients.length})
+            <LogOut className="w-4 h-4" /> Sign Out
           </button>
         </div>
       </div>
@@ -205,7 +420,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-black text-lg text-white">Order #{order.orderCode || order.id.slice(0, 8)}</h3>
+                      <h3 className="font-black text-lg text-white">Order #{order.orderCode || order.id?.slice(0, 8) || order.id || 'N/A'}</h3>
                       <p className="text-xs text-zinc-400 mt-0.5">
                         {order.customerName} • {order.customerPhone}
                       </p>
@@ -213,7 +428,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </div>
 
                     <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
-                      ${order.totalPrice.toFixed(2)}
+                      ${(order.totalPrice ?? 0).toFixed(2)}
                     </span>
                   </div>
 
@@ -227,7 +442,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                             {item.ingredients?.map(i => i.ingredientName).join(', ')}
                           </p>
                         </div>
-                        <span className="font-semibold text-zinc-400">${(item.itemPrice * item.quantity).toFixed(2)}</span>
+                        <span className="font-semibold text-zinc-400">${(((item.itemPrice || 0) * (item.quantity || 1))).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -289,7 +504,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   {ingredients.map(ing => (
                     <tr key={ing.id} className="hover:bg-zinc-900/40 transition-colors">
                       <td className="p-4 font-bold text-white">
-                        {ing.name}
+                        <div className="flex items-center gap-2">
+                          <span>{ing.name}</span>
+                          {ing.isDefault && (
+                            <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[9px] font-black uppercase tracking-wider">
+                              Default
+                            </span>
+                          )}
+                        </div>
                         {ing.description && <span className="block text-[11px] text-zinc-500 font-normal">{ing.description}</span>}
                       </td>
                       <td className="p-4">
@@ -316,7 +538,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           </div>
                         ) : (
                           <div className="flex items-center gap-2">
-                            <span>${ing.price.toFixed(2)}</span>
+                            <span>${(ing.price ?? 0).toFixed(2)}</span>
                             <button
                               onClick={() => {
                                 setEditingPriceId(ing.id);
@@ -335,16 +557,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                        <button
-                          onClick={() => handleToggleStock(ing.id)}
-                          className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${
-                            ing.inStock
-                              ? 'bg-red-950/40 border-red-500/30 text-red-400 hover:bg-red-900/60'
-                              : 'bg-green-950/40 border-green-500/30 text-green-400 hover:bg-green-900/60'
-                          }`}
-                        >
-                          {ing.inStock ? 'Mark Out of Stock' : 'Mark Available'}
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEditClick(ing)}
+                            className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-all border border-white/5"
+                            title="Edit Ingredient"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteIngredient(ing.id, ing.name)}
+                            className="p-2 rounded-xl bg-red-950/20 hover:bg-red-950/60 text-red-400 transition-all border border-red-500/10"
+                            title="Delete Ingredient"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleToggleStock(ing.id)}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${
+                              ing.inStock
+                                ? 'bg-red-950/40 border-red-500/30 text-red-400 hover:bg-red-900/60'
+                                : 'bg-green-950/40 border-green-500/30 text-green-400 hover:bg-green-900/60'
+                            }`}
+                          >
+                            {ing.inStock ? 'Mark Out' : 'Mark Avail'}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -418,11 +656,147 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Image URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. https://images.unsplash.com/..."
+                  value={newImage}
+                  onChange={(e) => setNewImage(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 py-2">
+                <input
+                  type="checkbox"
+                  id="newIsDefault"
+                  checked={newIsDefault}
+                  onChange={(e) => setNewIsDefault(e.target.checked)}
+                  className="w-4 h-4 rounded bg-zinc-900 border-white/10 text-amber-500 focus:ring-amber-500 accent-amber-500"
+                />
+                <label htmlFor="newIsDefault" className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                  Set as default selection for this category
+                </label>
+              </div>
+
               <button
                 type="submit"
                 className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-all shadow-md mt-2"
               >
                 Save Ingredient
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Ingredient Modal */}
+      {showEditModal && editingIngredient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-full max-w-md glass-panel bg-zinc-950 rounded-3xl p-6 border border-white/10 text-white space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-white/10">
+              <h3 className="font-extrabold text-lg">Edit Ingredient</h3>
+              <button onClick={() => { setShowEditModal(false); setEditingIngredient(null); }} className="text-zinc-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateIngredient} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Ingredient Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Gorgonzola Cheese"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 block mb-1">Category</label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as IngredientCategory)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                  >
+                    {Object.values(IngredientCategory).map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-zinc-400 block mb-1">Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.25"
+                    required
+                    value={editPrice}
+                    onChange={(e) => setEditPrice(parseFloat(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Description</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Creamy Italian blue cheese"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Image URL (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. https://images.unsplash.com/..."
+                  value={editImage}
+                  onChange={(e) => setEditImage(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-6 py-2">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="editInStock"
+                    checked={editInStock}
+                    onChange={(e) => setEditInStock(e.target.checked)}
+                    className="w-4 h-4 rounded bg-zinc-900 border-white/10 text-amber-500 focus:ring-amber-500 accent-amber-500"
+                  />
+                  <label htmlFor="editInStock" className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                    In Stock
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="editIsDefault"
+                    checked={editIsDefault}
+                    onChange={(e) => setEditIsDefault(e.target.checked)}
+                    className="w-4 h-4 rounded bg-zinc-900 border-white/10 text-amber-500 focus:ring-amber-500 accent-amber-500"
+                  />
+                  <label htmlFor="editIsDefault" className="text-xs font-bold text-zinc-300 cursor-pointer select-none">
+                    Default Selection
+                  </label>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-all shadow-md mt-2"
+              >
+                Save Changes
               </button>
             </form>
           </div>

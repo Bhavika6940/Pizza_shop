@@ -5,6 +5,8 @@ import { Ingredient, IngredientCategory, SelectedIngredient, CustomPizza } from 
 import { PizzaCanvas } from './PizzaCanvas';
 import { Check, Plus, Minus, RotateCcw, ShoppingBag, Info, Flame, Sparkles } from 'lucide-react';
 
+import { useToast } from '@/components/ToastProvider';
+
 interface PizzaBuilderProps {
   ingredients: Ingredient[];
   onAddToCart: (pizza: CustomPizza) => void;
@@ -18,6 +20,7 @@ export const PizzaBuilder: React.FC<PizzaBuilderProps> = ({
   initialPizza,
   onClearInitialPizza,
 }) => {
+  const toast = useToast();
   // Categorize ingredients
   const sizes = useMemo(() => ingredients.filter(i => i.category === IngredientCategory.SIZE), [ingredients]);
   const crusts = useMemo(() => ingredients.filter(i => i.category === IngredientCategory.CRUST), [ingredients]);
@@ -223,6 +226,7 @@ export const PizzaBuilder: React.FC<PizzaBuilderProps> = ({
       totalPrice: calculatedTotal,
     };
     onAddToCart(customPizza);
+    toast.success(`${customPizza.name} added to cart!`);
   };
 
   return (

@@ -1,10 +1,9 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CustomPizza, OrderType, PaymentMethod, Order } from '@/types';
 import { createOrder } from '@/lib/api';
 import confetti from 'canvas-confetti';
-import { X, CheckCircle, Truck, Store, CreditCard, DollarSign, Loader2 } from 'lucide-react';
+import { X, CheckCircle, Truck, Store, CreditCard, DollarSign, Loader2, UserCheck } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -19,6 +18,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   cart,
   onOrderSuccess,
 }) => {
+  const { customerUser } = useAuth();
+
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
@@ -27,6 +28,36 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Save form fields draft to localStorage while editing
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isOpen) {
+      const draft = { customerName, customerPhone, deliveryAddress, orderType, paymentMethod, specialInstructions };
+      localStorage.setItem('slicecraft_checkout_form_draft', JSON.stringify(draft));
+    }
+  }, [customerName, customerPhone, deliveryAddress, orderType, paymentMethod, specialInstructions, isOpen]);
+
+  // Restore form fields draft on mount/open or fallback to customerUser
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isOpen) {
+      const savedDraft = localStorage.getItem('slicecraft_checkout_form_draft');
+      if (savedDraft) {
+        try {
+          const d = JSON.parse(savedDraft);
+          if (d.customerName) setCustomerName(d.customerName);
+          if (d.customerPhone) setCustomerPhone(d.customerPhone);
+          if (d.deliveryAddress) setDeliveryAddress(d.deliveryAddress);
+          if (d.orderType) setOrderType(d.orderType);
+          if (d.paymentMethod) setPaymentMethod(d.paymentMethod);
+          if (d.specialInstructions) setSpecialInstructions(d.specialInstructions);
+        } catch {}
+      } else if (customerUser) {
+        if (customerUser.name) setCustomerName(customerUser.name);
+        if (customerUser.phone) setCustomerPhone(customerUser.phone);
+        if (customerUser.address) setDeliveryAddress(customerUser.address);
+      }
+    }
+  }, [isOpen, customerUser]);
 
   if (!isOpen) return null;
 
@@ -115,7 +146,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       <div className="relative w-full max-w-lg glass-panel bg-zinc-950/95 border border-white/10 rounded-3xl p-6 md:p-8 text-white shadow-2xl z-10 my-8">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
+        <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-4">
           <div>
             <h2 className="text-2xl font-black text-white">Place Your Pizza Order</h2>
             <p className="text-xs text-zinc-400">Enter delivery & payment details below</p>
@@ -127,6 +158,13 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {customerUser && (
+          <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-300">
+            <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>Logged in as <strong>{customerUser.name}</strong> — Customer info auto-filled!</span>
+          </div>
+        )}
 
         {error && (
           <div className="p-3 mb-4 rounded-xl bg-red-950/60 border border-red-500/30 text-red-300 text-xs font-semibold">

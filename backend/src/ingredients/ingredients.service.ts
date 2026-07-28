@@ -38,13 +38,26 @@ export class IngredientsService {
   }
 
   async create(dto: CreateIngredientDto) {
+    if (dto.isDefault) {
+      await this.prisma.ingredient.updateMany({
+        where: { category: dto.category, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
     return this.prisma.ingredient.create({
       data: dto,
     });
   }
 
   async update(id: string, dto: UpdateIngredientDto) {
-    await this.findOne(id);
+    const current = await this.findOne(id);
+    const category = dto.category || current.category;
+    if (dto.isDefault) {
+      await this.prisma.ingredient.updateMany({
+        where: { category, isDefault: true },
+        data: { isDefault: false },
+      });
+    }
     return this.prisma.ingredient.update({
       where: { id },
       data: dto,

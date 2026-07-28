@@ -15,12 +15,12 @@ async function bootstrap() {
   // Global prefix /api
   app.setGlobalPrefix('api');
 
-  // Enable automatic validation
+  // Enable automatic validation with safe stripping
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
     }),
   );
 

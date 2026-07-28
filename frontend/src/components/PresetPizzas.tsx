@@ -3,6 +3,7 @@
 import React from 'react';
 import { PresetPizza, CustomPizza, Ingredient, IngredientCategory } from '@/types';
 import { Pizza, Sparkles, Plus, Flame, Sliders } from 'lucide-react';
+import { useToast } from '@/components/ToastProvider';
 
 interface PresetPizzasProps {
   ingredients: Ingredient[];
@@ -96,6 +97,7 @@ export const PresetPizzas: React.FC<PresetPizzasProps> = ({
   onAddToCart,
   onCustomizePreset,
 }) => {
+  const toast = useToast();
   // Convert preset to CustomPizza format using available ingredients list
   const buildCustomPizzaFromPreset = (preset: PresetPizza): CustomPizza => {
     const size = ingredients.find(i => i.name.includes(preset.sizeName.split(' ')[0])) ||
@@ -220,7 +222,11 @@ export const PresetPizzas: React.FC<PresetPizzasProps> = ({
                 </button>
 
                 <button
-                  onClick={() => onAddToCart(buildCustomPizzaFromPreset(preset))}
+                  onClick={() => {
+                    const pizza = buildCustomPizzaFromPreset(preset);
+                    onAddToCart(pizza);
+                    toast.success(`${preset.name} added to cart!`);
+                  }}
                   className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white text-xs font-bold transition-all shadow-md"
                 >
                   <Plus className="w-4 h-4" />

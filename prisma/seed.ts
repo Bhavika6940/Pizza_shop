@@ -308,7 +308,7 @@ const initialIngredients = [
 async function main() {
   console.log('Seeding pizza ingredients...');
   
-  // Clear existing ingredients if any
+ 
   await prisma.ingredient.deleteMany({});
   
   for (const item of initialIngredients) {

@@ -1,169 +1,173 @@
-# 🍕 SliceCraft — Full-Stack Pizza Ordering & Management Platform
+# 🍕 SliceCraft Artisan Pizzeria
 
-A modern, full-stack online pizza ordering system built with **Next.js 16**, **NestJS 11**, **Prisma ORM v7**, and **PostgreSQL**. Features an interactive custom pizza builder, preset signature pizzas, real-time order tracking, and a comprehensive admin dashboard.
-
----
-
-## 🚀 Features
-
-### 🛒 Customer Experience
-- **Interactive Custom Pizza Builder**: Build customized pizzas with dynamic visual canvas representation, size selection, crust types, sauces, cheeses, meats, vegetables, and gourmet dips.
-- **Real-Time Dynamic Pricing**: Instant updates to total item cost based on selected ingredients and sizes.
-- **Preset Signature Pizzas**: Quick selection from artisan preset recipes (e.g., Margherita Supreme, Meat Lover's Feast, Veggie Deluxe).
-- **Cart & Checkout Workflow**: Slide-over cart drawer supporting quantity adjustments, delivery vs. pickup preference, payment methods (Cash/Card), and special instructions.
-- **Live Order Tracker**: Track active orders stage-by-stage (*Pending* ➔ *Preparing* ➔ *Baking* ➔ *Out for Delivery* ➔ *Delivered*) using unique order tracking codes.
-
-### ⚙️ Admin Management Dashboard
-- **Menu & Ingredient Control**: Manage stock availability (`inStock`), update ingredient pricing, and add/edit menu items.
-- **Order Pipeline Management**: View incoming orders, filter by status, search by order code or customer details, and transition order statuses in real time.
+SliceCraft is a modern, high-performance, full-stack web application designed for a premium artisan pizzeria. It features a real-time custom pizza builder, preset artisan menus, a live step-by-step order tracking system with customer track record history, a dual-role authentication system (Customer & Admin), and a full-featured Admin Portal for kitchen order management and ingredient CRUD operations.
 
 ---
 
-## 🛠️ Tech Stack
+## 🚀 Technology Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend Framework** | [Next.js 16](https://nextjs.org/) (App Router) + [React 19](https://react.dev/) |
-| **Styling & UI** | [Tailwind CSS v4](https://tailwindcss.com/) + [Lucide Icons](https://lucide.dev/) + [Canvas Confetti](https://www.npmjs.com/package/canvas-confetti) |
-| **Backend Framework** | [NestJS 11](https://nestjs.com/) (TypeScript / Node.js) |
-| **Database & ORM** | [PostgreSQL 16](https://www.postgresql.org/) + [Prisma ORM v7](https://www.prisma.io/) (`@prisma/adapter-pg`) |
-| **Validation** | `class-validator` + `class-transformer` |
-| **Containerization** | [Docker](https://www.docker.com/) & Docker Compose |
+### **Frontend**
+- **Framework**: Next.js 16 (App Router, Turbopack)
+- **Styling**: Vanilla CSS + Tailwind CSS (Glassmorphism design aesthetic, vibrant gradients, micro-animations)
+- **Icons & Effects**: Lucide React, Canvas Confetti
+- **State & Auth**: React Context API (`AuthContext`, `ToastProvider`) with `localStorage` persistence
+
+### **Backend**
+- **Framework**: NestJS 11 (Modular REST API)
+- **ORM**: Prisma ORM v7 (`@prisma/adapter-pg`)
+- **Validation**: Class Validator & Class Transformer (whitelist & sanitization)
+
+### **Database**
+- **DBMS**: PostgreSQL 16 (running via Docker container on port `5432`)
+- **Schema**: Strongly typed Prisma Schema (`User`, `Ingredient`, `Order`, `OrderItem`, `OrderItemIngredient`, `Role`, `IngredientCategory`, `OrderStatus`, `OrderType`, `PaymentMethod`)
+
+---
+
+## ✨ Key Features & Development Highlights
+
+### 1. 🍕 Custom Pizza Builder & Presets Menu
+- **Interactive Builder**: Real-time selection of Pizza Sizes, Crusts, Sauces, Cheeses, Meats, Veggies, and Dips.
+- **Dynamic Pricing**: Instant item price recalculation as toppings are selected or modified.
+- **Presets Menu**: Pre-configured artisan pizzas (e.g. *Supreme Overload*, *Truffle Mushroom Bliss*, *BBQ Chicken Feast*) with 1-click ordering and "Customize Preset" capabilities.
+
+### 2. 🔐 Dual-Role Authentication System
+- **Customer Authentication**:
+  - Dedicated Customer Sign-In and Registration modals.
+  - Session persistence in `localStorage`.
+  - **Auto-Fill Checkout**: Automatically pre-fills logged-in customer's name, phone number, and delivery address during checkout.
+  - **Quick Demo Customer Login**: 1-click login as demo customer `Alex Mercer`.
+- **Admin Authentication Gate**:
+  - Protected standalone route at `/admin`.
+  - Admin login screen guarding kitchen operations (`admin@slicecraft.com` / `admin123`).
+  - **Quick Demo Admin Login**: 1-click login as `Master Pizzaiolo Admin`.
+
+### 3. 🛵 Live Order Tracking & Customer Track Record
+- **Real-Time Stepper Timeline**: Step-by-step preparation progress (`PENDING` ➔ `PREPARING` ➔ `BAKING` ➔ `OUT_FOR_DELIVERY` ➔ `DELIVERED`).
+- **Customer Track Record**: Dedicated order history list displaying all past orders placed by the customer.
+- **Admin Status Synchronization**: Customer track record cards reflect the exact live kitchen status currently set by store admins, updating automatically in real time.
+- **1-Click Live Inspection**: Click "Track Live →" on any past order to load its interactive preparation timeline.
+
+### 4. 🛡️ Admin Portal & Ingredient CRUD Operations
+- **Live Orders Manager**: View incoming orders, filter by status, and update kitchen statuses in real time.
+- **Ingredient Inventory CRUD**:
+  - Add new ingredients with categories, pricing, descriptions, images, and default category flags.
+  - Edit existing ingredient details via a glassmorphic modal.
+  - Delete ingredients with confirmation dialogs.
+  - Toggle stock availability instantly (`In Stock` / `Out of Stock`).
+  - Inline price editing directly within the inventory table.
+  - Automatic `isDefault` state management (unsetting previous category defaults when a new default is assigned).
+
+### 5. 🔔 Glassmorphism Toast Notification System
+- Custom animated notification toasts (`success`, `error`, `info`) with auto-dismissal (4s) and smooth slide-in transitions.
+- Integrated across cart actions, order placements, auth events, and admin CRUD operations.
+
+---
+
+## 🔑 Demo Credentials
+
+| Role | Email | Password | Details |
+| :--- | :--- | :--- | :--- |
+| **Admin** | `admin@slicecraft.com` | `admin123` | Master Pizzaiolo Admin (Full Admin Portal Access) |
+| **Customer** | `customer@slicecraft.com` | `customer123` | Alex Mercer (Saved Address & Order History) |
 
 ---
 
 ## 📁 Project Structure
 
-```text
+```
 Pizza_shop/
-├── backend/                  # NestJS REST API Server
+├── backend/                  # NestJS 11 REST API Service
 │   ├── src/
-│   │   ├── ingredients/      # Ingredients module (CRUD & stock management)
-│   │   ├── orders/           # Orders module (Creation, status pipeline, tracking)
-│   │   ├── prisma/           # Prisma service integration module
-│   │   ├── app.module.ts     # Main application root module
-│   │   └── main.ts           # NestJS entry point & CORS configuration
-│   └── Dockerfile            # Container configuration for backend
-├── frontend/                 # Next.js Frontend Application
+│   │   ├── auth/             # Auth Module (Login, Register, DTOs)
+│   │   ├── ingredients/      # Ingredients Module (CRUD & Stock Service)
+│   │   ├── orders/           # Orders Module (Order Processing & Status Updates)
+│   │   ├── prisma/           # Prisma Service & Database Connection
+│   │   ├── app.module.ts     # Root Module Configuration
+│   │   └── main.ts           # Entrypoint & Validation Pipe Setup
+│   └── package.json
+├── frontend/                 # Next.js 16 Web Application
 │   ├── src/
-│   │   ├── app/              # Next.js App Router (Layouts, Pages, Globals CSS)
-│   │   ├── components/       # UI Components (PizzaBuilder, AdminDashboard, OrderTracker, etc.)
-│   │   ├── lib/              # API Client utilities & helper functions
-│   │   └── types/            # TypeScript interfaces & Enums
-│   └── Dockerfile            # Container configuration for frontend
-├── prisma/                   # Prisma Schema & Database Utilities
-│   ├── schema.prisma         # Database models, enums & PostgreSQL config
-│   └── seed.ts               # Database seed script for initial ingredients & preset data
-├── docker-compose.yml        # Orchestration for PostgreSQL, Backend, and Frontend
-├── package.json              # Root dependencies (Prisma CLI & Drivers)
-└── .env                      # Environment configuration variables
+│   │   ├── app/
+│   │   │   ├── page.tsx      # Main Storefront (Builder, Presets, Tracker)
+│   │   │   └── admin/        # Dedicated Admin Portal Route (/admin)
+│   │   ├── components/       # UI Components (PizzaBuilder, PresetPizzas, OrderTracker, AdminDashboard, AuthModal, CheckoutModal, ToastProvider, Navbar, CartDrawer)
+│   │   ├── context/          # AuthContext (Customer & Admin Session Management)
+│   │   ├── lib/              # API Client & Fallback Local Storage Simulation
+│   │   └── types/            # TypeScript Interface Definitions
+│   └── package.json
+├── prisma/
+│   ├── schema.prisma         # PostgreSQL Models (User, Ingredient, Order, etc.)
+│   └── seed.ts               # Database Seeding Script (35 Ingredients + Admin/Customer Users)
+└── README.md
 ```
 
 ---
 
-## ⚡ Quick Start with Docker (Recommended)
+## ⚙️ Setup & Running Instructions
 
-The easiest way to run the complete stack is using Docker Compose.
-
-### 1. Prerequisites
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running.
-
-### 2. Run the Stack
-Run the following command in the project root:
-
-```bash
-docker-compose up --build
-```
-
-This will launch:
-- 🐘 **PostgreSQL**: `localhost:5432`
-- ⚙️ **Backend API**: `http://localhost:3001`
-- 💻 **Frontend App**: `http://localhost:3000`
+### **1. Prerequisites**
+- **Node.js**: `v18+` or `v20+`
+- **npm**: `v9+`
+- **PostgreSQL**: Docker container running on port `5432` (`postgresql://postgres:postgres@localhost:5432/pizzashop?schema=public`)
 
 ---
 
-## 🛠️ Manual Local Development Setup
+### **2. Database Migration & Seeding**
 
-If you prefer to run services manually for local development:
-
-### 1. Environment Configuration
-Ensure `.env` exists in the root directory:
-
-```env
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pizzashop?schema=public"
-PORT=3001
-NEXT_PUBLIC_API_URL="http://localhost:3001/api"
-```
-
-### 2. Start PostgreSQL Container
-Start only the PostgreSQL database:
+Run the following commands in the root directory to sync the database schema and populate initial ingredients & default user accounts:
 
 ```bash
-docker-compose up postgres -d
-```
-
-### 3. Database Migration & Seeding
-Push the Prisma schema to PostgreSQL and seed initial ingredients:
-
-```bash
-# Push schema changes to database
+# Push Prisma schema to PostgreSQL
 npx prisma db push
 
-# Seed initial ingredient menu items
+# Generate Prisma Client
+npx prisma generate
+
+# Seed initial 35 ingredients and Admin/Customer accounts
 npx tsx prisma/seed.ts
 ```
 
-### 4. Start Backend (NestJS)
+---
+
+### **3. Running Backend (NestJS)**
 
 ```bash
 cd backend
 npm install
 npm run start:dev
 ```
-Backend will start on `http://localhost:3001` (API base route: `http://localhost:3001/api`).
+The NestJS API server will run at: `http://localhost:3001/api`
 
-### 5. Start Frontend (Next.js)
+---
+
+### **4. Running Frontend (Next.js)**
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-Frontend will be accessible at `http://localhost:3000`.
+The web application will be accessible at:
+- **Storefront**: `http://localhost:3000/`
+- **Admin Portal**: `http://localhost:3000/admin`
 
 ---
 
-## 📡 REST API Summary
+### **5. Building for Production**
 
-### Ingredients API (`/api/ingredients`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/ingredients` | Retrieve all ingredients (or filter by category) |
-| `POST` | `/api/ingredients` | Add a new ingredient (Admin) |
-| `PATCH` | `/api/ingredients/:id` | Update ingredient details or stock availability |
-| `DELETE` | `/api/ingredients/:id` | Remove an ingredient |
+To build both services for production deployment:
 
-### Orders API (`/api/orders`)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/orders` | Submit a new customer order |
-| `GET` | `/api/orders` | Fetch all orders (Admin dashboard) |
-| `GET` | `/api/orders/track/:orderCode` | Track single order by order code |
-| `PATCH` | `/api/orders/:id/status` | Update order status (`PENDING`, `PREPARING`, `BAKING`, `OUT_FOR_DELIVERY`, `DELIVERED`, `CANCELLED`) |
+```bash
+# Build Backend
+cd backend
+npm run build
+
+# Build Frontend
+cd frontend
+npm run build
+```
 
 ---
 
-## 🗄️ Database Schema Overview
-
-The database uses PostgreSQL with the following core entities:
-
-- **`Ingredient`**: Stores available pizza components (`SIZE`, `CRUST`, `SAUCE`, `CHEESE`, `MEAT`, `VEGGIE`, `DIP`), prices, stock flags (`inStock`), and image URLs.
-- **`Order`**: Stores customer details, delivery address, phone, `OrderType` (*DELIVERY* / *PICKUP*), `PaymentMethod` (*CASH* / *CARD*), `OrderStatus`, and total pricing.
-- **`OrderItem`**: Individual items inside an order with custom specifications.
-- **`OrderItemIngredient`**: Detailed snapshot of ingredient choices for each order item.
-
----
-
-## 📜 License
-
-This project is open-source and available under the [MIT License](LICENSE).
+## 📄 License
+This project is open-source under the MIT License.
