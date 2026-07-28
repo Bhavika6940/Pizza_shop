@@ -18,6 +18,7 @@ export default function Home() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [trackedOrder, setTrackedOrder] = useState<Order | null>(null);
+  const [customizingPizza, setCustomizingPizza] = useState<CustomPizza | null>(null);
 
   // Load ingredients from backend on mount
   const loadIngredientsData = async () => {
@@ -65,7 +66,8 @@ export default function Home() {
   };
 
   const handleCustomizePreset = (presetPizza: CustomPizza) => {
-    // Navigate to builder
+    // Navigate to builder with preset selected
+    setCustomizingPizza(presetPizza);
     setActiveTab('builder');
   };
 
@@ -90,6 +92,8 @@ export default function Home() {
           <PizzaBuilder
             ingredients={ingredients}
             onAddToCart={handleAddToCart}
+            initialPizza={customizingPizza}
+            onClearInitialPizza={() => setCustomizingPizza(null)}
           />
         )}
 

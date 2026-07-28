@@ -10,9 +10,14 @@ export class OrdersService {
   async create(dto: CreateOrderDto) {
     const { items, ...orderData } = dto;
 
+    // Generate a short 6-digit random uppercase alphanumeric code (e.g. SC-A1B2C3)
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const orderCode = `SC-${randomSuffix}`;
+
     return this.prisma.order.create({
       data: {
         ...orderData,
+        orderCode,
         items: {
           create: items.map((item) => ({
             pizzaName: item.pizzaName,

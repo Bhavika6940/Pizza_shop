@@ -49,6 +49,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     }
   }, [activeTab, orderFilter]);
 
+  // Listen to background mock order updates to keep dashboard dynamic
+  useEffect(() => {
+    const handleMockUpdate = () => {
+      if (activeTab === 'orders') {
+        loadOrders();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mock-order-updated', handleMockUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mock-order-updated', handleMockUpdate);
+      }
+    };
+  }, [activeTab]);
+
   // Handle Order Status Update
   const handleStatusChange = async (orderId: string, newStatus: OrderStatus) => {
     try {

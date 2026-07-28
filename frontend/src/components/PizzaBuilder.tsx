@@ -8,9 +8,16 @@ import { Check, Plus, Minus, RotateCcw, ShoppingBag, Info, Flame, Sparkles } fro
 interface PizzaBuilderProps {
   ingredients: Ingredient[];
   onAddToCart: (pizza: CustomPizza) => void;
+  initialPizza?: CustomPizza | null;
+  onClearInitialPizza?: () => void;
 }
 
-export const PizzaBuilder: React.FC<PizzaBuilderProps> = ({ ingredients, onAddToCart }) => {
+export const PizzaBuilder: React.FC<PizzaBuilderProps> = ({ 
+  ingredients, 
+  onAddToCart,
+  initialPizza,
+  onClearInitialPizza,
+}) => {
   // Categorize ingredients
   const sizes = useMemo(() => ingredients.filter(i => i.category === IngredientCategory.SIZE), [ingredients]);
   const crusts = useMemo(() => ingredients.filter(i => i.category === IngredientCategory.CRUST), [ingredients]);
@@ -81,6 +88,59 @@ export const PizzaBuilder: React.FC<PizzaBuilderProps> = ({ ingredients, onAddTo
   // Toppings & Dips selections map
   const [selectedToppings, setSelectedToppings] = useState<SelectedIngredient[]>([]);
   const [selectedDips, setSelectedDips] = useState<SelectedIngredient[]>([]);
+
+  // Load initial pizza if editing/customizing
+  React.useEffect(() => {
+    if (initialPizza) {
+      // Find matching size, crust, sauce, cheese from loaded ingredients to keep correct references
+      const sizeMatch = sizes.find(s => s.id === initialPizza.size.id || s.name === initialPizza.size.name);
+      if (sizeMatch) setSelectedSize(sizeMatch);
+      else if (initialPizza.size) setSelectedSize(initialPizza.size);
+
+      const crustMatch = crusts.find(c => c.id === initialPizza.crust.id || c.name === initialPizza.crust.name);
+      if (crustMatch) setSelectedCrust(crustMatch);
+      else if (initialPizza.crust) setSelectedCrust(initialPizza.crust);
+
+      const sauceMatch = sauces.find(s => s.id === initialPizza.sauce.id || s.name === initialPizza.sauce.name);
+      if (sauceMatch) setSelectedSauce(sauceMatch);
+      else if (initialPizza.sauce) setSelectedSauce(initialPizza.sauce);
+
+      const cheeseMatch = cheeses.find(c => c.id === initialPizza.cheese.id || c.name === initialPizza.cheese.name);
+      if (cheeseMatch) setSelectedCheese(cheeseMatch);
+      else if (initialPizza.cheese) setSelectedCheese(initialPizza.cheese);
+
+      // Map toppings and dips from loaded ingredients if possible
+      if (initialPizza.toppings) {
+        const mappedToppings = initialPizza.toppings.map(t => {
+          const matchedIng = ingredients.find(ing => ing.id === t.ingredient.id || ing.name === t.ingredient.name);
+          return {
+            ingredient: matchedIng || t.ingredient,
+            quantity: t.quantity
+          };
+        });
+        setSelectedToppings(mappedToppings);
+      }
+
+      if (initialPizza.dips) {
+        const mappedDips = initialPizza.dips.map(d => {
+          const matchedIng = ingredients.find(ing => ing.id === d.ingredient.id || ing.name === d.ingredient.name);
+          return {
+            ingredient: matchedIng || d.ingredient,
+            quantity: d.quantity
+          };
+        });
+        setSelectedDips(mappedDips);
+      }
+
+      // Reset to first step or toppings tab so they can see selections
+      setActiveStep(initialPizza.toppings.length > 0 ? 'toppings' : 'size');
+
+      // Clear initial pizza from parent
+      if (onClearInitialPizza) {
+        onClearInitialPizza();
+      }
+    }
+  }, [initialPizza, ingredients, sizes, crusts, sauces, cheeses, onClearInitialPizza]);
 
   // Active step tab in builder
   const [activeStep, setActiveStep] = useState<'size' | 'crust' | 'sauce' | 'cheese' | 'toppings' | 'dips'>('size');

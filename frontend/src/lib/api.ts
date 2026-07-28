@@ -2,6 +2,44 @@ import { Ingredient, IngredientCategory, Order, OrderStatus } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
+// Helper to get/set mock orders from localStorage
+const getMockOrders = (): Order[] => {
+  if (typeof window === 'undefined') return [];
+  const stored = localStorage.getItem('slicecraft_mock_orders');
+  return stored ? JSON.parse(stored) : [];
+};
+
+const saveMockOrders = (orders: Order[]) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('slicecraft_mock_orders', JSON.stringify(orders));
+};
+
+// Background simulator for mock order progression
+function simulateOrderStatusProgress(orderId: string) {
+  const intervals = [
+    { status: OrderStatus.PREPARING, delay: 8000 },  // 8s
+    { status: OrderStatus.BAKING, delay: 18000 },    // 18s
+    { status: OrderStatus.OUT_FOR_DELIVERY, delay: 32000 }, // 32s
+    { status: OrderStatus.DELIVERED, delay: 50000 }, // 50s
+  ];
+  
+  intervals.forEach(({ status, delay }) => {
+    setTimeout(() => {
+      const orders = getMockOrders();
+      const idx = orders.findIndex(o => o.id === orderId);
+      if (idx !== -1 && orders[idx].status !== OrderStatus.CANCELLED) {
+        orders[idx].status = status;
+        orders[idx].updatedAt = new Date().toISOString();
+        saveMockOrders(orders);
+        // Trigger a custom event to notify components to refresh
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('mock-order-updated', { detail: { orderId, status } }));
+        }
+      }
+    }, delay);
+  });
+}
+
 export async function fetchIngredients(category?: IngredientCategory): Promise<Ingredient[]> {
   try {
     const url = new URL(`${API_BASE_URL}/ingredients`);
@@ -30,8 +68,41 @@ export async function createOrder(orderData: any): Promise<Order> {
     }
     return await res.json();
   } catch (error: any) {
-    console.error('Error creating order via API:', error);
-    throw error;
+    console.warn('Backend API order placement failed, falling back to local simulation:', error);
+    
+    // Generate a local mock order
+    const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const mockOrder: Order = {
+      id: `local-${Date.now()}`,
+      orderCode: `SC-${randomSuffix}`,
+      customerName: orderData.customerName,
+      customerPhone: orderData.customerPhone,
+      deliveryAddress: orderData.deliveryAddress,
+      orderType: orderData.orderType,
+      paymentMethod: orderData.paymentMethod,
+      specialInstructions: orderData.specialInstructions,
+      totalPrice: orderData.totalPrice,
+      status: OrderStatus.PENDING,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      items: orderData.items.map((item: any, idx: number) => ({
+        id: `item-${idx}-${Date.now()}`,
+        pizzaName: item.pizzaName,
+        size: item.size,
+        quantity: item.quantity,
+        itemPrice: item.itemPrice,
+        ingredients: item.ingredients,
+      })),
+    };
+    
+    const mockOrders = getMockOrders();
+    mockOrders.push(mockOrder);
+    saveMockOrders(mockOrders);
+    
+    // Start status simulation in background
+    simulateOrderStatusProgress(mockOrder.id);
+    
+    return mockOrder;
   }
 }
 
@@ -41,32 +112,64 @@ export async function fetchOrder(idOrCode: string): Promise<Order> {
     if (!res.ok) throw new Error('Order not found');
     return await res.json();
   } catch (error) {
-    console.error('Failed to fetch order:', error);
-    throw error;
+    console.warn('Backend API fetch order failed, checking local simulation:', error);
+    
+    const mockOrders = getMockOrders();
+    const order = mockOrders.find(
+      o => o.id === idOrCode || o.orderCode === idOrCode || o.id.includes(idOrCode) || o.orderCode.includes(idOrCode)
+    );
+    
+    if (!order) {
+      throw new Error('Order not found locally or via API.');
+    }
+    return order;
   }
 }
 
 export async function fetchAllOrders(status?: OrderStatus): Promise<Order[]> {
+  let apiOrders: Order[] = [];
   try {
     const url = new URL(`${API_BASE_URL}/orders`);
     if (status) url.searchParams.append('status', status);
     const res = await fetch(url.toString(), { cache: 'no-store' });
-    if (!res.ok) throw new Error('Failed to fetch orders');
-    return await res.json();
+    if (res.ok) {
+      apiOrders = await res.json();
+    }
   } catch (error) {
     console.warn('Failed to fetch orders from API:', error);
-    return [];
   }
+  
+  // Combine with mock orders
+  const mockOrders = getMockOrders().filter(o => !status || o.status === status);
+  
+  // Combine both lists, sorting by createdAt descending
+  const allOrders = [...apiOrders, ...mockOrders];
+  allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  return allOrders;
 }
 
 export async function updateOrderStatus(orderId: string, status: OrderStatus): Promise<Order> {
-  const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ status }),
-  });
-  if (!res.ok) throw new Error('Failed to update order status');
-  return await res.json();
+  try {
+    const res = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) return await res.json();
+  } catch (error) {
+    console.warn('Failed to update order status via API, updating local simulation:', error);
+  }
+  
+  const mockOrders = getMockOrders();
+  const idx = mockOrders.findIndex(o => o.id === orderId);
+  if (idx === -1) {
+    throw new Error('Order not found to update status.');
+  }
+  
+  mockOrders[idx].status = status;
+  mockOrders[idx].updatedAt = new Date().toISOString();
+  saveMockOrders(mockOrders);
+  return mockOrders[idx];
 }
 
 export async function toggleIngredientStock(ingredientId: string): Promise<Ingredient> {

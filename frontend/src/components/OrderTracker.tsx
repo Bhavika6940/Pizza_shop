@@ -31,6 +31,30 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialOrder }) => {
     }
   }, [initialOrder]);
 
+  // Listen to background mock order updates
+  useEffect(() => {
+    const handleMockUpdate = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (order && (customEvent.detail.orderId === order.id || customEvent.detail.orderId === order.orderCode)) {
+        // Force refresh order details
+        setLoading(true);
+        fetchOrder(order.id)
+          .then(res => setOrder(res))
+          .catch(() => {})
+          .finally(() => setLoading(false));
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('mock-order-updated', handleMockUpdate);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('mock-order-updated', handleMockUpdate);
+      }
+    };
+  }, [order]);
+
   // Handle Search
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
