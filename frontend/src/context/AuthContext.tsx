@@ -20,6 +20,7 @@ interface AuthContextType {
   loginCustomer: (email: string, pass: string) => Promise<UserProfile>;
   loginAdmin: (email: string, pass: string) => Promise<UserProfile>;
   registerCustomerAccount: (data: { email: string; password: string; name: string; phone?: string; address?: string }) => Promise<UserProfile>;
+  registerAdminAccount: (data: { email: string; password: string; name: string; phone?: string; address?: string }) => Promise<UserProfile>;
   logoutCustomer: () => void;
   logoutAdmin: () => void;
   quickDemoCustomerLogin: () => Promise<UserProfile>;
@@ -65,10 +66,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const registerCustomerAccount = useCallback(async (data: { email: string; password: string; name: string; phone?: string; address?: string }) => {
-    const res = await registerUser(data);
+    const res = await registerUser({ ...data, role: 'CUSTOMER' });
     setCustomerUser(res.user);
     if (typeof window !== 'undefined') {
       localStorage.setItem('slicecraft_customer_user', JSON.stringify(res.user));
+    }
+    return res.user;
+  }, []);
+
+  const registerAdminAccount = useCallback(async (data: { email: string; password: string; name: string; phone?: string; address?: string }) => {
+    const res = await registerUser({ ...data, role: 'ADMIN' });
+    setAdminUser(res.user);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('slicecraft_admin_user', JSON.stringify(res.user));
     }
     return res.user;
   }, []);
@@ -105,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginCustomer,
         loginAdmin,
         registerCustomerAccount,
+        registerAdminAccount,
         logoutCustomer,
         logoutAdmin,
         quickDemoCustomerLogin,

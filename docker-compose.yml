@@ -39,7 +39,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: "http://localhost:3001/api"
+        NEXT_PUBLIC_API_URL: "http://localhost:3002/api"
     container_name: pizza_frontend
     restart: always
     ports:

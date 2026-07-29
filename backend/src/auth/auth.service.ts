@@ -37,6 +37,8 @@ export class AuthService {
       throw new BadRequestException('An account with this email already exists.');
     }
 
+    const userRole = dto.role || Role.CUSTOMER;
+
     const user = await this.prisma.user.create({
       data: {
         email: dto.email.toLowerCase().trim(),
@@ -44,14 +46,14 @@ export class AuthService {
         name: dto.name,
         phone: dto.phone,
         address: dto.address,
-        role: Role.CUSTOMER,
+        role: userRole,
       },
     });
 
     const { password, ...safeUser } = user;
     return {
       user: safeUser,
-      token: `token_customer_${safeUser.id}`,
+      token: `token_${safeUser.role.toLowerCase()}_${safeUser.id}`,
     };
   }
 

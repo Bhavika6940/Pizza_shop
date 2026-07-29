@@ -1,6 +1,31 @@
 import { Ingredient, IngredientCategory, Order, OrderStatus } from '@/types';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
+
+// Helper to manage registered mock users in localStorage
+const getRegisteredUsers = () => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const stored = localStorage.getItem('slicecraft_registered_users');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveRegisteredUser = (user: any) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const users = getRegisteredUsers();
+    const existingIdx = users.findIndex((u: any) => u.email.toLowerCase() === user.email.toLowerCase());
+    if (existingIdx !== -1) {
+      users[existingIdx] = user;
+    } else {
+      users.push(user);
+    }
+    localStorage.setItem('slicecraft_registered_users', JSON.stringify(users));
+  } catch {}
+};
 
 export async function loginUser(credentials: { email: string; password: string; role?: 'ADMIN' | 'CUSTOMER' }) {
   try {
@@ -15,23 +40,43 @@ export async function loginUser(credentials: { email: string; password: string; 
     }
     return await res.json();
   } catch (error: any) {
-    if (credentials.email.toLowerCase() === 'admin@slicecraft.com' && credentials.password === 'admin123') {
+    const reqEmail = credentials.email.toLowerCase().trim();
+    const reqRole = credentials.role || 'CUSTOMER';
+
+    // Demo admin check
+    if (reqEmail === 'admin@slicecraft.com' && credentials.password === 'admin123') {
       return {
         user: { id: 'admin-1', email: 'admin@slicecraft.com', name: 'Master Pizzaiolo Admin', role: 'ADMIN' },
         token: 'token_admin_demo',
       };
     }
-    if (credentials.email.toLowerCase() === 'customer@slicecraft.com' && credentials.password === 'customer123') {
+    // Demo customer check
+    if (reqEmail === 'customer@slicecraft.com' && credentials.password === 'customer123') {
       return {
         user: { id: 'cust-1', email: 'customer@slicecraft.com', name: 'Alex Mercer', phone: '+1 (555) 234-5678', address: '742 Evergreen Terrace, Sector 4', role: 'CUSTOMER' },
         token: 'token_customer_demo',
       };
     }
+
+    // Check registered local users
+    const registered = getRegisteredUsers();
+    const found = registered.find((u: any) => u.email.toLowerCase() === reqEmail && u.password === credentials.password);
+    if (found) {
+      if (reqRole && found.role !== reqRole) {
+        throw new Error(`Access denied. ${reqRole} privileges required.`);
+      }
+      const { password, ...safeUser } = found;
+      return {
+        user: safeUser,
+        token: `token_${safeUser.role.toLowerCase()}_${safeUser.id}`,
+      };
+    }
+
     throw new Error(error.message || 'Invalid email or password');
   }
 }
 
-export async function registerUser(data: { email: string; password: string; name: string; phone?: string; address?: string }) {
+export async function registerUser(data: { email: string; password: string; name: string; phone?: string; address?: string; role?: 'ADMIN' | 'CUSTOMER' }) {
   try {
     const res = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
@@ -44,9 +89,21 @@ export async function registerUser(data: { email: string; password: string; name
     }
     return await res.json();
   } catch (error: any) {
+    const role = data.role || 'CUSTOMER';
+    const newUser = {
+      id: `${role.toLowerCase()}-${Date.now()}`,
+      email: data.email.toLowerCase().trim(),
+      password: data.password,
+      name: data.name,
+      phone: data.phone || '',
+      address: data.address || '',
+      role,
+    };
+    saveRegisteredUser(newUser);
+    const { password, ...safeUser } = newUser;
     return {
-      user: { id: `cust-${Date.now()}`, email: data.email, name: data.name, phone: data.phone, address: data.address, role: 'CUSTOMER' },
-      token: `token_customer_${Date.now()}`,
+      user: safeUser,
+      token: `token_${role.toLowerCase()}_${safeUser.id}`,
     };
   }
 }
@@ -63,31 +120,8 @@ const saveMockOrders = (orders: Order[]) => {
   localStorage.setItem('slicecraft_mock_orders', JSON.stringify(orders));
 };
 
-// Background simulator for mock order progression
-function simulateOrderStatusProgress(orderId: string) {
-  const intervals = [
-    { status: OrderStatus.PREPARING, delay: 8000 },  // 8s
-    { status: OrderStatus.BAKING, delay: 18000 },    // 18s
-    { status: OrderStatus.OUT_FOR_DELIVERY, delay: 32000 }, // 32s
-    { status: OrderStatus.DELIVERED, delay: 50000 }, // 50s
-  ];
-  
-  intervals.forEach(({ status, delay }) => {
-    setTimeout(() => {
-      const orders = getMockOrders();
-      const idx = orders.findIndex(o => o.id === orderId);
-      if (idx !== -1 && orders[idx].status !== OrderStatus.CANCELLED) {
-        orders[idx].status = status;
-        orders[idx].updatedAt = new Date().toISOString();
-        saveMockOrders(orders);
-        // Trigger a custom event to notify components to refresh
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('mock-order-updated', { detail: { orderId, status } }));
-        }
-      }
-    }, delay);
-  });
-}
+// Note: Automatic order status progression is explicitly disabled.
+// Customer record statuses are exclusively updated manually by authorized admin personnel from the Admin Panel.
 
 // Helper to get/set mock ingredients from localStorage
 const getMockIngredients = (): Ingredient[] => {
@@ -111,11 +145,8 @@ const saveMockIngredients = (ingredients: Ingredient[]) => {
 
 export async function fetchIngredients(category?: IngredientCategory): Promise<Ingredient[]> {
   try {
-    const url = new URL(`${API_BASE_URL}/ingredients`);
-    if (category) {
-      url.searchParams.append('category', category);
-    }
-    const res = await fetch(url.toString(), { cache: 'no-store' });
+    const endpoint = `${API_BASE_URL}/ingredients${category ? `?category=${encodeURIComponent(category)}` : ''}`;
+    const res = await fetch(endpoint, { cache: 'no-store' });
     if (!res.ok) throw new Error('Failed to fetch ingredients');
     const data = await res.json();
     if (Array.isArray(data) && data.length > 0) {
@@ -123,7 +154,6 @@ export async function fetchIngredients(category?: IngredientCategory): Promise<I
     }
     throw new Error('Empty ingredient list');
   } catch (error) {
-    console.warn('Backend API connection failed, using local/fallback ingredients:', error);
     const mock = getMockIngredients();
     return mock.filter(i => !category || i.category === category);
   }
@@ -142,7 +172,7 @@ export async function createOrder(orderData: any): Promise<Order> {
     }
     return await res.json();
   } catch (error: any) {
-    console.warn('Backend API order placement failed, falling back to local simulation:', error);
+    // Fall back smoothly to local order creation if backend API is unreachable
     
     // Generate a local mock order
     const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -173,52 +203,67 @@ export async function createOrder(orderData: any): Promise<Order> {
     mockOrders.push(mockOrder);
     saveMockOrders(mockOrders);
     
-    // Start status simulation in background
-    simulateOrderStatusProgress(mockOrder.id);
-    
+    // Automatic status simulation removed: order status remains PENDING until changed manually by admin
     return mockOrder;
   }
 }
 
-export async function fetchOrder(idOrCode: string): Promise<Order> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/orders/${idOrCode}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Order not found');
-    return await res.json();
-  } catch (error) {
-    console.warn('Backend API fetch order failed, checking local simulation:', error);
-    
-    const mockOrders = getMockOrders();
-    const order = mockOrders.find(
-      o => (o.id && (o.id === idOrCode || o.id.includes(idOrCode))) || 
-           (o.orderCode && (o.orderCode === idOrCode || o.orderCode.includes(idOrCode)))
-    );
-    
-    if (!order) {
-      throw new Error('Order not found locally or via API.');
-    }
-    return order;
+export async function fetchOrder(idOrCode: string): Promise<Order | null> {
+  if (!idOrCode || !idOrCode.trim()) return null;
+  const search = idOrCode.trim();
+
+  // 1. Check local mock/stored orders first (e.g. for offline/local created orders)
+  const mockOrders = getMockOrders();
+  const localMatch = mockOrders.find(
+    o => (o.id && (o.id === search || o.id.includes(search))) || 
+         (o.orderCode && (o.orderCode === search || o.orderCode.includes(search)))
+  );
+  if (localMatch) {
+    return localMatch;
   }
+
+  // 2. Attempt fetching from Backend API
+  try {
+    const res = await fetch(`${API_BASE_URL}/orders/${encodeURIComponent(search)}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.id || data.orderCode)) {
+        return data;
+      }
+    }
+  } catch (error) {
+    // Graceful catch when backend API is offline or unreachable
+  }
+
+  // 3. Final re-check of mock orders before returning null
+  const finalMatch = getMockOrders().find(
+    o => (o.id && (o.id === search || o.id.includes(search))) || 
+         (o.orderCode && (o.orderCode === search || o.orderCode.includes(search)))
+  );
+  return finalMatch || null;
 }
 
 export async function fetchAllOrders(status?: OrderStatus): Promise<Order[]> {
   let apiOrders: Order[] = [];
   try {
-    const url = new URL(`${API_BASE_URL}/orders`);
-    if (status) url.searchParams.append('status', status);
-    const res = await fetch(url.toString(), { cache: 'no-store' });
+    const endpoint = `${API_BASE_URL}/orders${status ? `?status=${encodeURIComponent(status)}` : ''}`;
+    const res = await fetch(endpoint, { cache: 'no-store' });
     if (res.ok) {
       apiOrders = await res.json();
     }
   } catch (error) {
-    console.warn('Failed to fetch orders from API:', error);
+    // Gracefully handle offline or unreachable API backend
   }
   
   // Combine with mock orders
   const mockOrders = getMockOrders().filter(o => !status || o.status === status);
   
-  // Combine both lists, sorting by createdAt descending
-  const allOrders = [...apiOrders, ...mockOrders];
+  // Combine both lists, deduplicating by ID, sorting by createdAt descending
+  const orderMap = new Map<string, Order>();
+  for (const o of [...apiOrders, ...mockOrders]) {
+    if (o.id) orderMap.set(o.id, o);
+  }
+  const allOrders = Array.from(orderMap.values());
   allOrders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   return allOrders;
 }
@@ -230,9 +275,15 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus): P
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
-    if (res.ok) return await res.json();
+    if (res.ok) {
+      const updated = await res.json();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('mock-order-updated', { detail: { orderId, status } }));
+      }
+      return updated;
+    }
   } catch (error) {
-    console.warn('Failed to update order status via API, updating local simulation:', error);
+    // Fall back to local storage update when backend API is unreachable
   }
   
   const mockOrders = getMockOrders();
@@ -244,6 +295,11 @@ export async function updateOrderStatus(orderId: string, status: OrderStatus): P
   mockOrders[idx].status = status;
   mockOrders[idx].updatedAt = new Date().toISOString();
   saveMockOrders(mockOrders);
+  
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('mock-order-updated', { detail: { orderId, status } }));
+  }
+
   return mockOrders[idx];
 }
 
@@ -254,7 +310,7 @@ export async function toggleIngredientStock(ingredientId: string): Promise<Ingre
     });
     if (res.ok) return await res.json();
   } catch (error) {
-    console.warn('Backend stock toggle failed, falling back to local simulation:', error);
+    // Fall back to local mock stock toggle
   }
 
   const ingredients = getMockIngredients();
@@ -276,7 +332,7 @@ export async function updateIngredient(ingredientId: string, data: Partial<Ingre
     });
     if (res.ok) return await res.json();
   } catch (error) {
-    console.warn('Backend update failed, falling back to local simulation:', error);
+    // Fall back to local mock ingredient update
   }
 
   const ingredients = getMockIngredients();
@@ -302,7 +358,7 @@ export async function deleteIngredient(ingredientId: string): Promise<void> {
     });
     if (res.ok) return;
   } catch (error) {
-    console.warn('Backend delete failed, falling back to local simulation:', error);
+    // Fall back to local mock ingredient deletion
   }
 
   const ingredients = getMockIngredients();
@@ -319,7 +375,7 @@ export async function addIngredient(data: any): Promise<Ingredient> {
     });
     if (res.ok) return await res.json();
   } catch (error) {
-    console.warn('Backend add ingredient failed, falling back to local simulation:', error);
+    // Fall back to local mock ingredient addition
   }
 
   const ingredients = getMockIngredients();

@@ -11,7 +11,7 @@ interface AuthModalProps {
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
-  const { loginCustomer, registerCustomerAccount, quickDemoCustomerLogin } = useAuth();
+  const { loginCustomer, registerCustomerAccount, registerAdminAccount, quickDemoCustomerLogin } = useAuth();
   const toast = useToast();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -28,6 +28,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
   const [regName, setRegName] = useState('');
   const [regPhone, setRegPhone] = useState('');
   const [regAddress, setRegAddress] = useState('');
+  const [regRole, setRegRole] = useState<'CUSTOMER' | 'ADMIN'>('CUSTOMER');
 
   if (!isOpen) return null;
 
@@ -51,14 +52,26 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
     setLoading(true);
     setError('');
     try {
-      const user = await registerCustomerAccount({
-        email: regEmail,
-        password: regPassword,
-        name: regName,
-        phone: regPhone,
-        address: regAddress,
-      });
-      toast.success(`Account created! Welcome, ${user.name}!`);
+      let user;
+      if (regRole === 'ADMIN') {
+        user = await registerAdminAccount({
+          email: regEmail,
+          password: regPassword,
+          name: regName,
+          phone: regPhone,
+          address: regAddress,
+        });
+        toast.success(`Admin Account created in DB! Welcome, ${user.name}!`);
+      } else {
+        user = await registerCustomerAccount({
+          email: regEmail,
+          password: regPassword,
+          name: regName,
+          phone: regPhone,
+          address: regAddress,
+        });
+        toast.success(`Account created! Welcome, ${user.name}!`);
+      }
       onClose();
     } catch (err: any) {
       setError(err.message || 'Registration failed.');
@@ -188,6 +201,30 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
         {/* REGISTER FORM */}
         {mode === 'register' && (
           <form onSubmit={handleRegisterSubmit} className="space-y-3">
+            <div>
+              <label className="text-[11px] font-bold text-zinc-400 block mb-1">Account Role</label>
+              <div className="flex bg-zinc-900 p-1 rounded-xl border border-white/10 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setRegRole('CUSTOMER')}
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${
+                    regRole === 'CUSTOMER' ? 'bg-amber-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Customer Account
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegRole('ADMIN')}
+                  className={`flex-1 py-1.5 rounded-lg transition-all ${
+                    regRole === 'ADMIN' ? 'bg-amber-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  Admin Account
+                </button>
+              </div>
+            </div>
+
             <div>
               <label className="text-[11px] font-bold text-zinc-400 block mb-1">Full Name</label>
               <input

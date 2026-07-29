@@ -19,11 +19,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onRefreshIngredients,
 }) => {
   const toast = useToast();
-  const { adminUser, isAdminLoggedIn, loginAdmin, logoutAdmin, quickDemoAdminLogin } = useAuth();
+  const { adminUser, isAdminLoggedIn, loginAdmin, registerAdminAccount, logoutAdmin, quickDemoAdminLogin } = useAuth();
   
-  // Admin Login state
+  // Admin Login & Register state
+  const [adminAuthMode, setAdminAuthMode] = useState<'login' | 'register'>('login');
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [adminRegName, setAdminRegName] = useState('');
+  const [adminRegEmail, setAdminRegEmail] = useState('');
+  const [adminRegPassword, setAdminRegPassword] = useState('');
+  const [adminRegPhone, setAdminRegPhone] = useState('');
   const [adminAuthLoading, setAdminAuthLoading] = useState(false);
   const [adminAuthError, setAdminAuthError] = useState('');
 
@@ -81,6 +86,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       toast.success(`Welcome to Admin Portal, ${u.name}!`);
     } catch (err: any) {
       setAdminAuthError(err.message || 'Admin authentication failed');
+    } finally {
+      setAdminAuthLoading(false);
+    }
+  };
+
+  const handleAdminRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminAuthLoading(true);
+    setAdminAuthError('');
+    try {
+      const u = await registerAdminAccount({
+        name: adminRegName,
+        email: adminRegEmail,
+        password: adminRegPassword,
+        phone: adminRegPhone || undefined,
+      });
+      toast.success(`Admin account registered in DB! Welcome, ${u.name}!`);
+    } catch (err: any) {
+      setAdminAuthError(err.message || 'Admin registration failed');
     } finally {
       setAdminAuthLoading(false);
     }
@@ -241,7 +265,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <span className="p-3.5 rounded-2xl bg-amber-500/10 text-amber-400 inline-block border border-amber-500/20 mb-2">
               <ShieldCheck className="w-8 h-8" />
             </span>
-            <h1 className="text-3xl font-black text-white">Admin Authentication</h1>
+            <h1 className="text-3xl font-black text-white">Admin Portal Access</h1>
             <p className="text-xs text-zinc-400">Restricted portal for kitchen staff & store management</p>
           </div>
 
@@ -269,51 +293,138 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </button>
           </div>
 
+          {/* Login vs Register Admin Toggle */}
+          <div className="flex bg-zinc-900 p-1 rounded-xl border border-white/10 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => { setAdminAuthMode('login'); setAdminAuthError(''); }}
+              className={`flex-1 py-2 rounded-lg transition-all ${
+                adminAuthMode === 'login' ? 'bg-amber-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Admin Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => { setAdminAuthMode('register'); setAdminAuthError(''); }}
+              className={`flex-1 py-2 rounded-lg transition-all ${
+                adminAuthMode === 'register' ? 'bg-amber-500 text-black shadow-md' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              Register New Admin
+            </button>
+          </div>
+
           {adminAuthError && (
             <div className="p-3 rounded-xl bg-red-950/60 border border-red-500/30 text-red-300 text-xs font-semibold text-center">
               {adminAuthError}
             </div>
           )}
 
-          <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Email</label>
-              <div className="relative">
-                <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+          {adminAuthMode === 'login' ? (
+            <form onSubmit={handleAdminLoginSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Email</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="admin@slicecraft.com"
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Password</label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="••••••••"
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={adminAuthLoading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-xs transition-all shadow-md mt-2"
+              >
+                {adminAuthLoading ? 'Verifying Admin Credentials...' : 'Unlock Admin Portal'}
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleAdminRegisterSubmit} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Full Name</label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  placeholder="admin@slicecraft.com"
-                  value={adminEmail}
-                  onChange={(e) => setAdminEmail(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  placeholder="e.g. Master Pizzaiolo"
+                  value={adminRegName}
+                  onChange={(e) => setAdminRegName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Password</label>
-              <div className="relative">
-                <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Email</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="newadmin@slicecraft.com"
+                    value={adminRegEmail}
+                    onChange={(e) => setAdminRegEmail(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Admin Password</label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="•••••••• (Min 6 chars)"
+                    value={adminRegPassword}
+                    onChange={(e) => setAdminRegPassword(e.target.value)}
+                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-zinc-400 block mb-1">Phone Number (Optional)</label>
                 <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  type="tel"
+                  placeholder="+1 (555) 000-0000"
+                  value={adminRegPhone}
+                  onChange={(e) => setAdminRegPhone(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={adminAuthLoading}
-              className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-xs transition-all shadow-md mt-2"
-            >
-              {adminAuthLoading ? 'Verifying Admin Credentials...' : 'Unlock Admin Portal'}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={adminAuthLoading}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-xs transition-all shadow-md mt-2"
+              >
+                {adminAuthLoading ? 'Registering Admin Account...' : 'Register & Save Admin to DB'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -379,6 +490,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {activeTab === 'orders' && (
         <div className="space-y-6">
           
+          {/* Admin Manual Control Policy Notice */}
+          <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-amber-300 text-xs font-medium shadow-sm">
+            <ShieldCheck className="w-5 h-5 shrink-0 text-amber-400" />
+            <div>
+              <span className="font-bold text-amber-400 block">Manual Admin Control Policy</span>
+              <span>Only logged-in Admin personnel can modify customer order record statuses. Automatic status updates have been disabled to guarantee complete admin control.</span>
+            </div>
+          </div>
+
           {/* Status Filter Pills */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -448,13 +568,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   </div>
 
                   {/* Update Status Dropdown */}
-                  <div className="pt-2 flex items-center justify-between border-t border-white/10">
-                    <span className="text-xs font-semibold text-zinc-400">Update Kitchen Status:</span>
+                  <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-white/10">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-400">
+                      <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Admin Status Override:</span>
+                    </div>
 
                     <select
                       value={order.status}
                       onChange={(e) => handleStatusChange(order.id, e.target.value as OrderStatus)}
-                      className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-amber-500/30 text-amber-300 text-xs font-bold focus:outline-none cursor-pointer"
+                      className="px-3 py-1.5 rounded-xl bg-zinc-900 border border-amber-500/40 text-amber-300 text-xs font-bold focus:outline-none cursor-pointer hover:border-amber-400 transition-all"
                     >
                       {Object.values(OrderStatus).map(st => (
                         <option key={st} value={st} className="bg-zinc-950 text-white">

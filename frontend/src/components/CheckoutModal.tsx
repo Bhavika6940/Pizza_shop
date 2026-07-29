@@ -37,24 +37,32 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
   }, [customerName, customerPhone, deliveryAddress, orderType, paymentMethod, specialInstructions, isOpen]);
 
+  const handleAutoFill = () => {
+    if (customerUser) {
+      if (customerUser.name) setCustomerName(customerUser.name);
+      if (customerUser.phone) setCustomerPhone(customerUser.phone);
+      if (customerUser.address) setDeliveryAddress(customerUser.address);
+    }
+  };
+
   // Restore form fields draft on mount/open or fallback to customerUser
   useEffect(() => {
     if (typeof window !== 'undefined' && isOpen) {
-      const savedDraft = localStorage.getItem('slicecraft_checkout_form_draft');
-      if (savedDraft) {
-        try {
-          const d = JSON.parse(savedDraft);
-          if (d.customerName) setCustomerName(d.customerName);
-          if (d.customerPhone) setCustomerPhone(d.customerPhone);
-          if (d.deliveryAddress) setDeliveryAddress(d.deliveryAddress);
-          if (d.orderType) setOrderType(d.orderType);
-          if (d.paymentMethod) setPaymentMethod(d.paymentMethod);
-          if (d.specialInstructions) setSpecialInstructions(d.specialInstructions);
-        } catch {}
-      } else if (customerUser) {
-        if (customerUser.name) setCustomerName(customerUser.name);
-        if (customerUser.phone) setCustomerPhone(customerUser.phone);
-        if (customerUser.address) setDeliveryAddress(customerUser.address);
+      if (customerUser) {
+        handleAutoFill();
+      } else {
+        const savedDraft = localStorage.getItem('slicecraft_checkout_form_draft');
+        if (savedDraft) {
+          try {
+            const d = JSON.parse(savedDraft);
+            if (d.customerName) setCustomerName(d.customerName);
+            if (d.customerPhone) setCustomerPhone(d.customerPhone);
+            if (d.deliveryAddress) setDeliveryAddress(d.deliveryAddress);
+            if (d.orderType) setOrderType(d.orderType);
+            if (d.paymentMethod) setPaymentMethod(d.paymentMethod);
+            if (d.specialInstructions) setSpecialInstructions(d.specialInstructions);
+          } catch {}
+        }
       }
     }
   }, [isOpen, customerUser]);
@@ -103,18 +111,21 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         ],
       }));
 
-      const orderPayload = {
+      const newOrder = await createOrder({
         customerName,
         customerPhone,
-        deliveryAddress: orderType === OrderType.DELIVERY ? deliveryAddress : 'Store Pickup',
+        deliveryAddress: orderType === OrderType.DELIVERY ? deliveryAddress : 'PICKUP AT STORE',
         orderType,
         paymentMethod,
-        specialInstructions,
-        totalPrice: grandTotal,
+        specialInstructions: specialInstructions || undefined,
+        totalPrice: Number(grandTotal.toFixed(2)),
         items: itemsPayload,
-      };
+      });
 
-      const newOrder = await createOrder(orderPayload);
+      // Clear checkout draft upon order success
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('slicecraft_checkout_form_draft');
+      }
 
       // Trigger Confetti!
       try {
@@ -160,9 +171,18 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         </div>
 
         {customerUser && (
-          <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-300">
-            <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>Logged in as <strong>{customerUser.name}</strong> — Customer info auto-filled!</span>
+          <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2 text-xs text-amber-300">
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>Logged in as <strong>{customerUser.name}</strong></span>
+            </div>
+            <button
+              type="button"
+              onClick={handleAutoFill}
+              className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-[11px] transition-all shrink-0"
+            >
+              Auto-fill Details
+            </button>
           </div>
         )}
 

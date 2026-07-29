@@ -60,7 +60,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialOrder }) => {
       if (savedCode) {
         setSearchCode(savedCode);
         fetchOrder(savedCode)
-          .then(res => setOrder(res))
+          .then(res => { if (res) setOrder(res); })
           .catch(() => {});
       }
     }
@@ -75,7 +75,7 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialOrder }) => {
         // Force refresh order details
         setLoading(true);
         fetchOrder(order.id)
-          .then(res => setOrder(res))
+          .then(res => { if (res) setOrder(res); })
           .catch(() => {})
           .finally(() => setLoading(false));
       }
@@ -101,9 +101,14 @@ export const OrderTracker: React.FC<OrderTrackerProps> = ({ initialOrder }) => {
 
     try {
       const res = await fetchOrder(searchCode.trim());
-      setOrder(res);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('slicecraft_last_tracked_code', searchCode.trim());
+      if (res) {
+        setOrder(res);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('slicecraft_last_tracked_code', searchCode.trim());
+        }
+      } else {
+        setError('Order not found. Please check your order code or ID.');
+        setOrder(null);
       }
     } catch (err) {
       setError('Order not found. Please check your order code or ID.');
